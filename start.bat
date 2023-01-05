@@ -2,6 +2,6 @@ flex -o out/lex.yy.c src/minipy-lexer.l
 
 bison -o out/parser.tab.c -d src/minipy-parser.y
 
-gcc -o out/minipy.exe out/lex.yy.c out/parser.tab.c 
+gcc out/lex.yy.c out/parser.tab.c -o out/minipy.exe
 
 "out/minipy.exe"
