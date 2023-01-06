@@ -3,7 +3,7 @@
     #include "parser.tab.h"
 
     extern YYSTYPE yylval;
-    int line_number=1, column_number=1;
+    int line_number = 1, column_number = 1;
 %}
 
 %option noyywrap
@@ -18,7 +18,7 @@ ASSIGNMENT "="
 
 SPACE (" ")+
 IDENTITAL_SPACE "\t"
-LINE_BREAK "\n"+
+LINE_BREAK "\n"
 
 INTEGER [0-9]+
 FLOATING_POINT {INTEGER}+"."{INTEGER}+

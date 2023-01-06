@@ -19,6 +19,7 @@
 	char* concat_strings(char*, char*);
 	char* remove_last_character(char*);
 	char* type_of(char*);
+	char* get_bigger_numeric_type(char*, char*);
 	
 
 	void throw_symantique_error(char*);
@@ -61,7 +62,7 @@
 
 %type <lexem_string> variable_dec
 %type <lexem_string> variables_dec_list
-%type <lexem_string> more_variables_dec
+%type <lexem_string> more_variables_dec variable_to_assign_to
 
 %type <lexem_string> factor
 %type <lexem_string> variable
@@ -137,12 +138,22 @@ more_variables_dec:
 assign: 
 		  variable_to_assign_to ASSIGNMENT expression 
 			{
-				printf("expression type : %s\n", $3);
-				/*
-					verify if variable_to_assign_to have a type, if it has, verify if it's the same as expression type,
-					if it doesn't have a type, set it's type to expression type
-					also verify if variable_to_assign_to is an array element, verify if its type is the same as expression type
-				 */
+				Identifier *target_variable = get($1);
+				char *expression_type = $3;
+
+				if (target_variable->type == NULL)
+					target_variable->type = expression_type;
+
+				else if (strcmp(target_variable->type, expression_type) != 0)
+					throw_symantique_error(
+						concat_strings(
+							concat_strings("cannot assign type ", expression_type),
+							concat_strings(
+								concat_strings(" to variable ", target_variable->name),
+								concat_strings(" of type ", target_variable->type)
+							)
+						)
+					);
 			}
 	;
 
@@ -151,6 +162,8 @@ variable_to_assign_to:
 		  	{
 				if(!is_declared($1))
 					insert($1, NULL);
+				
+				$$ = $1;
 			}
 
 		| IDENTIFIER SQUARE_BRACKET_OPEN INTEGER SQUARE_BRACKET_CLOSE 
@@ -168,30 +181,108 @@ variable_to_assign_to:
 					throw_symantique_error(
 						concat_strings(
 							concat_strings("index ", int_to_string(index)),
-							concat_strings(
-								concat_strings(" out of array ", id->name), " bounds"
-							)
+							concat_strings(concat_strings(" out of array ", id->name), " bounds")
 						)
 					);
+				
+				$$ = $1;
 			}
 	;
 
 expression: 
-		  expression MUL expression { printf("arithmetic expression MUL: %s / %s \n", $1, $3); }
-		| expression DIVIDE expression { printf("arithmetic expression DIVIDE: %s / %s \n", $1, $3); }
-		| expression PLUS expression { printf("arithmetic expression PLUS: %s / %s \n", $1, $3); }
-		| expression MINUS expression { printf("arithmetic expression MINUS: %s / %s \n", $1, $3); }
+		  expression MUL expression
+			{
+				if (!is_numeric_type($1) || !is_numeric_type($3))
+					throw_symantique_error(
+						concat_strings(
+							concat_strings("Operator '*' expect operands to have numeric type but got : ", $1),
+							concat_strings(" * ", $3)
+						)
+					);
+				
+				$$ = get_bigger_numeric_type($1, $3);
+			}
 
-		| expression AND expression { printf("logical expression and: %s / %s \n", $1, $3); }
-		| expression OR expression { printf("logical expression or: %s / %s \n", $1, $3); }
-		| NOT expression { printf("logical expression not: %s \n", $2); }
+		| expression DIVIDE expression
+			{
+				if (!is_numeric_type($1) || !is_numeric_type($3))
+					throw_symantique_error(
+						concat_strings(
+							concat_strings("Operator '/' expect operands to have numeric type but got : ", $1),
+							concat_strings(" / ", $3)
+						)
+					);
+				
+				$$ = get_bigger_numeric_type($1, $3);
+			}
+		
+		| expression PLUS expression
+			{
+				if (!is_numeric_type($1) || !is_numeric_type($3))
+					throw_symantique_error(
+						concat_strings(
+							concat_strings("Operator '+' expect operands to have numeric type but got : ", $1),
+							concat_strings(" + ", $3)
+						)
+					);
+				
+				$$ = get_bigger_numeric_type($1, $3);
+			}
+
+		| expression MINUS expression 
+			{
+				if (!is_numeric_type($1) || !is_numeric_type($3))
+					throw_symantique_error(
+						concat_strings(
+							concat_strings("Operator '-' expect operands to have numeric type but got : ", $1),
+							concat_strings(" - ", $3)
+						)
+					);
+				
+				$$ = get_bigger_numeric_type($1, $3);
+			}
+
+		| expression AND expression
+			{
+				if (!is_bool_type($1) || !is_bool_type($3))
+					throw_symantique_error(
+						concat_strings(
+							concat_strings("Operator 'and' expect operands to have boolean type but got : ", $1),
+							concat_strings(" and ", $3)
+						)
+					);
+
+				$$ = "bool";
+			}
+		| expression OR expression 
+			{
+				if (!is_bool_type($1) || !is_bool_type($3))
+					throw_symantique_error(
+						concat_strings(
+							concat_strings("Operator 'or' expect operands to have boolean type but got : ", $1),
+							concat_strings(" or ", $3)
+						)
+					);
+
+				$$ = "bool";
+			}
+
+		| NOT expression 
+			{
+				if (!is_bool_type($2))
+					throw_symantique_error(
+						concat_strings("Operator 'not' expect operand to have bool type but got : not", $2)
+					);
+
+				$$ = "bool";
+			}
 
 		| expression GE expression 
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
 						concat_strings(
-							concat_strings("Operator '>=' expect operators to be numeric type but got : ", $1),
+							concat_strings("Operator '>=' expect operands to have numeric type but got : ", $1),
 							concat_strings(" >= ", $3)
 						)
 					);
@@ -204,7 +295,7 @@ expression:
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
 						concat_strings(
-							concat_strings("Operator '<=' expect operators to be numeric type but got : ", $1),
+							concat_strings("Operator '<=' expect operands to have numeric type but got : ", $1),
 							concat_strings(" <= ", $3)
 						)
 					);
@@ -214,26 +305,28 @@ expression:
 
 		| expression EQ expression
 			{
-				if (strcpr($1, $3) != 0)
-					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '==' expect operators to have the same type but got : ", $1),
-							concat_strings(" == ", $3)
-						)
-					);
+				if (strcmp($1, $3) != 0)
+					if (!is_numeric_type($1) || !is_numeric_type($3))
+						throw_symantique_error(
+							concat_strings(
+								concat_strings("Operator '==' expect operands to have the same type but got : ", $1),
+								concat_strings(" == ", $3)
+							)
+						);
 
 				$$ = "bool";
 			}
 
 		| expression NE expression
 			{
-				if (strcpr($1, $3) != 0)
-					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '!=' expect operators to have the same type but got : ", $1),
-							concat_strings(" != ", $3)
-						)
-					);
+				if (strcmp($1, $3) != 0)
+					if (!is_numeric_type($1) || !is_numeric_type($3))
+						throw_symantique_error(
+							concat_strings(
+								concat_strings("Operator '!=' expect operands to have the same type but got : ", $1),
+								concat_strings(" != ", $3)
+							)
+						);
 
 				$$ = "bool";
 			}
@@ -243,7 +336,7 @@ expression:
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
 						concat_strings(
-							concat_strings("Operator '>' expect operators to be numeric type but got : ", $1),
+							concat_strings("Operator '>' expect operands to have numeric type but got : ", $1),
 							concat_strings(" > ", $3)
 						)
 					);
@@ -256,7 +349,7 @@ expression:
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
 						concat_strings(
-							concat_strings("Operator '<' expect operators to be numeric type but got : ", $1),
+							concat_strings("Operator '<' expect operands to have numeric type but got : ", $1),
 							concat_strings(" < ", $3)
 						)
 					);
@@ -316,9 +409,7 @@ variable:
 					throw_symantique_error(
 						concat_strings(
 							concat_strings("index ", int_to_string(index)),
-							concat_strings(
-								concat_strings(" out of array ", id->name), " bounds"
-							)
+							concat_strings(concat_strings(" out of array ", id->name), " bounds")
 						)
 					);
 				
@@ -341,21 +432,21 @@ void throw_symantique_error(char* message)
 	exit(1);
 }
 
-char* float_to_string(float f) 
+char *float_to_string(float f) 
 {
 	char* str = (char*) malloc(100);
 	sprintf(str, "%f", f);
 	return str;
 }
 
-char* int_to_string(int i) 
+char *int_to_string(int i) 
 {
 	char* str = (char*) malloc(100);
 	sprintf(str, "%d", i);
 	return str;
 }
 
-char* concat_strings(char* str1, char* str2) 
+char *concat_strings(char* str1, char* str2) 
 {
 	char* str = (char*) malloc(strlen(str1) + strlen(str2) + 1);
 
@@ -367,7 +458,7 @@ char* concat_strings(char* str1, char* str2)
 
 char *type_of(char* str)
 {
-	if (str == "true" || str == "false")
+	if (strcmp(str, "true") == 0 || strcmp(str, "false") == 0)
 		return "bool";
 
 	if (str[0] == '\'' && str[2] == '\'')
@@ -384,12 +475,12 @@ char *type_of(char* str)
 
 int is_numeric_type(char* str)
 {
-	return str == "int" || str == "float";
+	return strcmp(str, "int") == 0 || strcmp(str, "float") == 0;
 }
 
 int is_bool_type(char* str)
 {
-	return str == "bool";
+	return strcmp(str, "bool") == 0;
 }
 
 int is_float(char *str) 
@@ -414,6 +505,14 @@ int is_int(char *str)
         return 0;
     
     return 1;
+}
+
+char *get_bigger_numeric_type(char* type1, char* type2)
+{
+	if (strcmp(type1, "float") == 0 || strcmp(type2, "float") == 0)
+		return "float";
+
+	return "int";
 }
 
 int main (int argc, char** argv) 
