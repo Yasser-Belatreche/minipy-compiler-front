@@ -2,6 +2,7 @@
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <string.h>
+	#include <stdarg.h>
 	#include <ctype.h>
 
 	#include "../src/symbol-table.h"
@@ -14,10 +15,7 @@
 	int is_numeric_type(char*);
 	int is_bool_type(char*);
 
-	char* float_to_string(float);
-	char* int_to_string(int);
-	char* concat_strings(char*, char*);
-	char* remove_last_character(char*);
+	char* format_string(char*, ...);
 	char* type_of(char*);
 	char* get_bigger_numeric_type(char*, char*);
 	
@@ -66,7 +64,7 @@
 
 %type <lexem_string> factor
 %type <lexem_string> variable
-%type <lexem_string> expression
+%type <lexem_string> expression 
 
 
 %%
@@ -104,14 +102,14 @@ type:
 
 variables_dec_list: 
 		  variable_dec more_variables_dec 
-		  	{ $$ = concat_strings($1, concat_strings(",", $2)); }
+		  	{ $$ = format_string("%s,%s", $1, $2); }
 	;
 
 variable_dec: 
 		  IDENTIFIER
 		  	{
 				if(is_declared($1))
-					throw_symantique_error(concat_strings(concat_strings("variable ", $1), " already declared"));
+					throw_symantique_error(format_string("variable %s already declared", $1));
 				
 				insert($1, NULL);
 
@@ -120,7 +118,7 @@ variable_dec:
 		| IDENTIFIER SQUARE_BRACKET_OPEN INTEGER SQUARE_BRACKET_CLOSE 
 			{
 				if(is_declared($1))
-					throw_symantique_error(concat_strings(concat_strings("variable ", $1), " already declared"));
+					throw_symantique_error(format_string("variable %s already declared", $1));
 				
 				insert_array($1, NULL, $3);
 
@@ -146,13 +144,7 @@ assign:
 
 				else if (strcmp(target_variable->type, expression_type) != 0)
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("cannot assign type ", expression_type),
-							concat_strings(
-								concat_strings(" to variable ", target_variable->name),
-								concat_strings(" of type ", target_variable->type)
-							)
-						)
+						format_string("cannot assign type %s to variable %s of type %s", expression_type, target_variable->name, target_variable->type)
 					);
 			}
 	;
@@ -172,18 +164,13 @@ variable_to_assign_to:
 				int index = $3;
 
 				if(id == NULL) 
-					throw_symantique_error(concat_strings(concat_strings("array ", $1), " not declared"));
+					throw_symantique_error(format_string("variable %s not declared", $1));
 				
 				if (!id->is_array)
-					throw_symantique_error(concat_strings(concat_strings("variable ", $1), " is not an array"));
+					throw_symantique_error(format_string("variable %s is not an array", id->name));
 				
 				if (index >= id->array_size)
-					throw_symantique_error(
-						concat_strings(
-							concat_strings("index ", int_to_string(index)),
-							concat_strings(concat_strings(" out of array ", id->name), " bounds")
-						)
-					);
+					throw_symantique_error(format_string("index %d out of array %s bounds", index, id->name));
 				
 				$$ = $1;
 			}
@@ -194,10 +181,7 @@ expression:
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '*' expect operands to have numeric type but got : ", $1),
-							concat_strings(" * ", $3)
-						)
+						format_string("Operator '*' expect operands to have numeric type but got : %s * %s", $1, $3)
 					);
 				
 				$$ = get_bigger_numeric_type($1, $3);
@@ -207,10 +191,7 @@ expression:
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '/' expect operands to have numeric type but got : ", $1),
-							concat_strings(" / ", $3)
-						)
+						format_string("Operator '/' expect operands to have numeric type but got : %s / %s", $1, $3)
 					);
 				
 				$$ = get_bigger_numeric_type($1, $3);
@@ -220,10 +201,7 @@ expression:
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '+' expect operands to have numeric type but got : ", $1),
-							concat_strings(" + ", $3)
-						)
+						format_string("Operator '+' expect operands to have numeric type but got : %s + %s", $1, $3)
 					);
 				
 				$$ = get_bigger_numeric_type($1, $3);
@@ -233,10 +211,7 @@ expression:
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '-' expect operands to have numeric type but got : ", $1),
-							concat_strings(" - ", $3)
-						)
+						format_string("Operator '-' expect operands to have numeric type but got : %s - %s", $1, $3)
 					);
 				
 				$$ = get_bigger_numeric_type($1, $3);
@@ -246,10 +221,7 @@ expression:
 			{
 				if (!is_bool_type($1) || !is_bool_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator 'and' expect operands to have boolean type but got : ", $1),
-							concat_strings(" and ", $3)
-						)
+						format_string("Operator 'and' expect operands to have boolean type but got : %s and %s", $1, $3)
 					);
 
 				$$ = "bool";
@@ -258,10 +230,7 @@ expression:
 			{
 				if (!is_bool_type($1) || !is_bool_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator 'or' expect operands to have boolean type but got : ", $1),
-							concat_strings(" or ", $3)
-						)
+						format_string("Operator 'or' expect operands to have boolean type but got : %s or %s", $1, $3)
 					);
 
 				$$ = "bool";
@@ -271,7 +240,7 @@ expression:
 			{
 				if (!is_bool_type($2))
 					throw_symantique_error(
-						concat_strings("Operator 'not' expect operand to have bool type but got : not", $2)
+						format_string("Operator 'not' expect operand to have bool type but got : not %s", $2)
 					);
 
 				$$ = "bool";
@@ -281,10 +250,7 @@ expression:
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '>=' expect operands to have numeric type but got : ", $1),
-							concat_strings(" >= ", $3)
-						)
+						format_string("Operator '>=' expect operands to have numeric type but got : %s >= %s", $1, $3)
 					);
 
 				$$ = "bool";
@@ -294,10 +260,7 @@ expression:
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '<=' expect operands to have numeric type but got : ", $1),
-							concat_strings(" <= ", $3)
-						)
+						format_string("Operator '<=' expect operands to have numeric type but got : %s <= %s", $1, $3)
 					);
 
 				$$ = "bool";
@@ -308,10 +271,7 @@ expression:
 				if (strcmp($1, $3) != 0)
 					if (!is_numeric_type($1) || !is_numeric_type($3))
 						throw_symantique_error(
-							concat_strings(
-								concat_strings("Operator '==' expect operands to have the same type but got : ", $1),
-								concat_strings(" == ", $3)
-							)
+							format_string("Operator '==' expect operands to have the same type but got : %s == %s", $1, $3)
 						);
 
 				$$ = "bool";
@@ -322,10 +282,7 @@ expression:
 				if (strcmp($1, $3) != 0)
 					if (!is_numeric_type($1) || !is_numeric_type($3))
 						throw_symantique_error(
-							concat_strings(
-								concat_strings("Operator '!=' expect operands to have the same type but got : ", $1),
-								concat_strings(" != ", $3)
-							)
+							format_string("Operator '!=' expect operands to have the same type but got : %s != %s", $1, $3)
 						);
 
 				$$ = "bool";
@@ -335,10 +292,7 @@ expression:
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '>' expect operands to have numeric type but got : ", $1),
-							concat_strings(" > ", $3)
-						)
+						format_string("Operator '>' expect operands to have numeric type but got : %s > %s", $1, $3)
 					);
 
 				$$ = "bool";
@@ -348,10 +302,7 @@ expression:
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
 					throw_symantique_error(
-						concat_strings(
-							concat_strings("Operator '<' expect operands to have numeric type but got : ", $1),
-							concat_strings(" < ", $3)
-						)
+						format_string("Operator '<' expect operands to have numeric type but got : %s < %s", $1, $3)
 					);
 
 				$$ = "bool";
@@ -366,20 +317,20 @@ factor:
 		  	{ $$ = $1; }
 
 		| INTEGER
-			{ $$ = int_to_string($1); }
+			{ $$ = format_string("%d", $1); }
 		| ROUND_BRACKET_OPEN MINUS INTEGER ROUND_BRACKET_CLOSE 
-			{ $$ = concat_strings($2, int_to_string($3)); }
+			{ $$ = format_string("%s%d", $2, $3); }
 		
 		| FLOATING_POINT 
-			{ $$ = float_to_string($1); }
+			{ $$ = format_string("%f", $1); }
 		| ROUND_BRACKET_OPEN MINUS FLOATING_POINT ROUND_BRACKET_CLOSE 
-			{ $$ = concat_strings($2, float_to_string($3)); }
+			{ $$ = format_string("%s%f", $2, $3); }
 
 		| BOOLEAN 
 			{ $$ = $1; }
 
 		| SINGLE_QUOTION_MARK CHARACTER SINGLE_QUOTION_MARK 
-			{ $$ = concat_strings($1, concat_strings($2, $3)); }
+			{ $$ = format_string("'%c'", $2); }
 
 		| ROUND_BRACKET_OPEN expression ROUND_BRACKET_CLOSE 
 			{ $$ = $2; }
@@ -389,7 +340,7 @@ variable:
 		  IDENTIFIER
 			{
 				if(!is_declared($1)) 
-					throw_symantique_error(concat_strings(concat_strings("variable ", $1), " not declared"));
+					throw_symantique_error(format_string("variable %s not declared", $1));
 				
 				$$ = $1;
 			} 
@@ -400,18 +351,13 @@ variable:
 				int index = $3;
 
 				if(id == NULL) 
-					throw_symantique_error(concat_strings(concat_strings("array ", $1), " not declared"));
+					throw_symantique_error(format_string("array %s not declared", $1));
 				
 				if (!id->is_array)
-					throw_symantique_error(concat_strings(concat_strings("variable ", $1), " is not an array"));
+					throw_symantique_error(format_string("variable %s is not an array", $1));
 				
 				if (index >= id->array_size)
-					throw_symantique_error(
-						concat_strings(
-							concat_strings("index ", int_to_string(index)),
-							concat_strings(concat_strings(" out of array ", id->name), " bounds")
-						)
-					);
+					throw_symantique_error(format_string("index %d out of array %s bounds", index, id->name));
 				
 				$$ = $1;
 			}
@@ -432,26 +378,16 @@ void throw_symantique_error(char* message)
 	exit(1);
 }
 
-char *float_to_string(float f) 
+
+char *format_string(char* format, ...) 
 {
+	va_list args;
+	va_start(args, format);
+
 	char* str = (char*) malloc(100);
-	sprintf(str, "%f", f);
-	return str;
-}
+	vsprintf(str, format, args);
 
-char *int_to_string(int i) 
-{
-	char* str = (char*) malloc(100);
-	sprintf(str, "%d", i);
-	return str;
-}
-
-char *concat_strings(char* str1, char* str2) 
-{
-	char* str = (char*) malloc(strlen(str1) + strlen(str2) + 1);
-
-	strcpy(str, str1);
-	strcat(str, str2);
+	va_end(args);
 
 	return str;
 }
