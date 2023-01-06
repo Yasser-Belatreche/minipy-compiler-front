@@ -52,46 +52,47 @@ COMMENT ^"#".*
 
 %%
 
-{COMMA} {column_number += yyleng;  yylval.lexem = strdup(yytext); return COMMA;}
-{SINGLE_QUOTION_MARK} {column_number += yyleng; yylval.lexem = strdup(yytext); return SINGLE_QUOTION_MARK;}
-{SQUARE_BRACKET_OPEN} {column_number += yyleng; yylval.lexem = strdup(yytext); return SQUARE_BRACKET_OPEN;}
-{SQUARE_BRACKET_CLOSE} {column_number += yyleng; yylval.lexem = strdup(yytext); return SQUARE_BRACKET_CLOSE;}
-{ROUND_BRACKET_OPEN} {column_number += yyleng; yylval.lexem = strdup(yytext); return ROUND_BRACKET_OPEN;}
-{ROUND_BRACKET_CLOSE} {column_number += yyleng; yylval.lexem = strdup(yytext); return ROUND_BRACKET_CLOSE;}
-{ASSIGNMENT} {column_number += yyleng; yylval.lexem = strdup(yytext); return ASSIGNMENT;}
+{COMMA} {column_number += yyleng;  yylval.lexem_string = strdup(yytext); return COMMA;}
+{SINGLE_QUOTION_MARK} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return SINGLE_QUOTION_MARK;}
+{SQUARE_BRACKET_OPEN} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return SQUARE_BRACKET_OPEN;}
+{SQUARE_BRACKET_CLOSE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return SQUARE_BRACKET_CLOSE;}
+{ROUND_BRACKET_OPEN} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return ROUND_BRACKET_OPEN;}
+{ROUND_BRACKET_CLOSE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return ROUND_BRACKET_CLOSE;}
+{ASSIGNMENT} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return ASSIGNMENT;}
 
 {SPACE} {column_number += yyleng;}
 {LINE_BREAK} {line_number++; column_number = 1;}
 
-{PLUS} {column_number += yyleng; yylval.lexem = strdup(yytext); return PLUS;}
-{MINUS} {column_number += yyleng; yylval.lexem = strdup(yytext); return MINUS;}
-{DIVIDE} {column_number += yyleng; yylval.lexem = strdup(yytext); return DIVIDE;}
-{MUL} {column_number += yyleng; yylval.lexem = strdup(yytext); return MUL;}
+{PLUS} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return PLUS;}
+{MINUS} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return MINUS;}
+{DIVIDE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return DIVIDE;}
+{MUL} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return MUL;}
 
-{GT} {column_number += yyleng; yylval.lexem = strdup(yytext); return GT;}
-{LT} {column_number += yyleng; yylval.lexem = strdup(yytext); return LT;}
-{GE} {column_number += yyleng; yylval.lexem = strdup(yytext); return GE;}
-{LE} {column_number += yyleng; yylval.lexem = strdup(yytext); return LE;}
-{EQ} {column_number += yyleng; yylval.lexem = strdup(yytext); return EQ;}
-{NE} {column_number += yyleng; yylval.lexem = strdup(yytext); return NE;}
+{GT} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return GT;}
+{LT} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return LT;}
+{GE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return GE;}
+{LE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return LE;}
+{EQ} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return EQ;}
+{NE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return NE;}
 
-{AND} {column_number += yyleng; yylval.lexem = strdup(yytext); return AND;}
-{OR} {column_number += yyleng; yylval.lexem = strdup(yytext); return OR;}
-{NOT} {column_number += yyleng; yylval.lexem = strdup(yytext); return NOT;}
+{AND} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return AND;}
+{OR} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return OR;}
+{NOT} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return NOT;}
 
-{INT} {column_number += yyleng; yylval.lexem = strdup(yytext); return INT;}
-{FLOAT} {column_number += yyleng; yylval.lexem = strdup(yytext); return FLOAT;}
-{CHAR} {column_number += yyleng;  yylval.lexem = strdup(yytext); return CHAR;}
-{BOOL} {column_number += yyleng;  yylval.lexem = strdup(yytext); return BOOL;}
+{INT} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return INT;}
+{FLOAT} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return FLOAT;}
+{CHAR} {column_number += yyleng;  yylval.lexem_string = strdup(yytext); return CHAR;}
+{BOOL} {column_number += yyleng;  yylval.lexem_string = strdup(yytext); return BOOL;}
 
-{IDENTIFIER} {column_number += yyleng; yylval.lexem = strdup(yytext); return IDENTIFIER;}
 
-{INTEGER} {column_number += yyleng; yylval.lexem = strdup(yytext); return INTEGER;}
-{FLOATING_POINT} {column_number += yyleng; yylval.lexem = strdup(yytext); return FLOATING_POINT;}
-{BOOLEAN} {column_number += yyleng; yylval.lexem = strdup(yytext); return BOOLEAN;}
-{CHARACTER} {column_number += yyleng; yylval.lexem = strdup(yytext); return CHARACTER;}
+{IDENTIFIER} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return IDENTIFIER;}
 
-{COMMENT} {line_number++; ECHO; column_number = 1;}
+{INTEGER} {column_number += yyleng; yylval.lexem_int = atoi(yytext); return INTEGER;}
+{FLOATING_POINT} {column_number += yyleng; yylval.lexem_float = atof(yytext); return FLOATING_POINT;}
+{BOOLEAN} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return BOOLEAN;}
+{CHARACTER} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return CHARACTER;}
+
+{COMMENT} {line_number++; column_number = 1;}
 
 . { printf ("Lexical Error: word (%s) at Line -> %d, Column -> %d is not valid in minipy. \n", yytext, line_number, column_number); exit(0); }
 %%
