@@ -3,12 +3,19 @@
     #include "parser.tab.h"
 
     extern YYSTYPE yylval;
+   
     int line_number = 1, column_number = 1;
+
+    int prev_indentation_level = 0;
+    int current_indentation_level = 0;
+
+    int count = 0;
 %}
 
 %option noyywrap
 
 COMMA ","
+COLON ":"
 SINGLE_QUOTION_MARK "'"
 SQUARE_BRACKET_OPEN "\["
 SQUARE_BRACKET_CLOSE "\]"
@@ -16,9 +23,9 @@ ROUND_BRACKET_OPEN "\("
 ROUND_BRACKET_CLOSE "\)"
 ASSIGNMENT "="
 
-SPACE (" ")+
-IDENTITAL_SPACE "\t"
+SPACE " "
 LINE_BREAK "\n"
+INDENTATION "    "
 
 INTEGER [0-9]+
 FLOATING_POINT {INTEGER}+"."{INTEGER}+
@@ -37,6 +44,13 @@ LE "<="
 EQ "=="
 NE "!="
 
+IF "if"
+ELSE "else"
+WHILE "while"
+FOR "for"
+IN "in"
+RANGE "range"
+
 AND "and"
 OR "or"
 NOT "not"
@@ -50,9 +64,45 @@ IDENTIFIER [A-Z][A-Za-z0-9]{0,7}
 
 COMMENT ^"#".*
 
+
+%x INDENT_STATE
+
+
 %%
 
+<INDENT_STATE>{INDENTATION} { current_indentation_level++; column_number += yyleng; }
+<INDENT_STATE>{LINE_BREAK} { line_number++; column_number = 1; current_indentation_level = 0; }
+<INDENT_STATE><<EOF>> {
+                    if (current_indentation_level < prev_indentation_level) {
+                        printf("send dedent from eof \n\n");
+
+                        prev_indentation_level--;
+                        return DEDENT;
+                    }
+
+                    BEGIN INITIAL;
+}
+<INDENT_STATE>. {
+                    printf("Line : %d, Indentation end, current indentation level: %d, previous indentation level: %d \n", line_number, current_indentation_level, prev_indentation_level);
+                    unput(*yytext);
+
+                    if (current_indentation_level > prev_indentation_level) {
+                        printf("send indent \n\n");
+                        prev_indentation_level++;
+                        return INDENT;
+                    }
+                    if (current_indentation_level < prev_indentation_level) {
+                        printf("send dedent \n\n");
+
+                        prev_indentation_level--;
+                        return DEDENT;
+                    }
+
+                    BEGIN INITIAL;
+                }
+
 {COMMA} {column_number += yyleng;  yylval.lexem_string = strdup(yytext); return COMMA;}
+{COLON} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return COLON;}
 {SINGLE_QUOTION_MARK} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return SINGLE_QUOTION_MARK;}
 {SQUARE_BRACKET_OPEN} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return SQUARE_BRACKET_OPEN;}
 {SQUARE_BRACKET_CLOSE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return SQUARE_BRACKET_CLOSE;}
@@ -60,8 +110,9 @@ COMMENT ^"#".*
 {ROUND_BRACKET_CLOSE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return ROUND_BRACKET_CLOSE;}
 {ASSIGNMENT} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return ASSIGNMENT;}
 
+
 {SPACE} {column_number += yyleng;}
-{LINE_BREAK} {line_number++; column_number = 1;}
+{LINE_BREAK} {line_number++; column_number = 1; current_indentation_level = 0; BEGIN INDENT_STATE;}
 
 {PLUS} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return PLUS;}
 {MINUS} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return MINUS;}
@@ -84,6 +135,12 @@ COMMENT ^"#".*
 {CHAR} {column_number += yyleng;  yylval.lexem_string = strdup(yytext); return CHAR;}
 {BOOL} {column_number += yyleng;  yylval.lexem_string = strdup(yytext); return BOOL;}
 
+{IF} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return IF;}
+{ELSE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return ELSE;}
+{WHILE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return WHILE;}
+{FOR} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return FOR;}
+{IN} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return IN;}
+{RANGE} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return RANGE;}
 
 {IDENTIFIER} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return IDENTIFIER;}
 
@@ -95,5 +152,8 @@ COMMENT ^"#".*
 {COMMENT} {line_number++; column_number = 1;}
 
 . { printf ("Lexical Error: word (%s) at Line -> %d, Column -> %d is not valid in minipy. \n", yytext, line_number, column_number); exit(0); }
+
 %%
+
+
 

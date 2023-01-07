@@ -1,5 +1,6 @@
 %{
 	#include <stdio.h>
+	#include <unistd.h>
 	#include <stdlib.h>
 	#include <string.h>
 	#include <stdarg.h>
@@ -12,13 +13,12 @@
 
 	int is_int(char*);
 	int is_float(char*);
-	int is_numeric_type(char*);
 	int is_bool_type(char*);
+	int is_numeric_type(char*);
 
-	char* format_string(char*, ...);
 	char* type_of(char*);
+	char* format_string(char*, ...);
 	char* get_bigger_numeric_type(char*, char*);
-	
 
 	void throw_symantique_error(char*);
 
@@ -37,9 +37,13 @@
 %token <lexem_string> INT FLOAT CHAR BOOL
 %token <lexem_string> PLUS DIVIDE MUL MINUS
 %token <lexem_string> GE LE EQ NE GT LT
-%token <lexem_string> AND OR NOT
+%token <lexem_string> AND OR NOT 
 
-%token <lexem_string> COMMA SQUARE_BRACKET_OPEN SQUARE_BRACKET_CLOSE ROUND_BRACKET_OPEN ROUND_BRACKET_CLOSE SINGLE_QUOTION_MARK ASSIGNMENT
+%token <lexem_string> COLON COMMA SQUARE_BRACKET_OPEN SQUARE_BRACKET_CLOSE ROUND_BRACKET_OPEN ROUND_BRACKET_CLOSE SINGLE_QUOTION_MARK ASSIGNMENT
+
+%token <lexem_string> IF ELSE WHILE FOR IN RANGE
+
+%token <lexem_string> INDENT DEDENT
 
 %token <lexem_string> CHARACTER BOOLEAN 
 %token <lexem_int> INTEGER
@@ -68,16 +72,22 @@
 
 
 %%
-program: statement_list { } 
+program: statement_list { }
 	;
 
-statement_list: /* epsilon */  { }
-		| statement statement_list { }
+statement_list: statement_list statement
+		| /* epsilon */ { }
+	;
+
+block: INDENT statement_list DEDENT { } 
 	;
 
 statement:
 		  declaration_with_type
-		| assign { }
+		| assign
+		| if_statement
+		| while_statement
+		| block
 	;
 
 declaration_with_type: 
@@ -173,6 +183,27 @@ variable_to_assign_to:
 					throw_symantique_error(format_string("index %d out of array %s bounds", index, id->name));
 				
 				$$ = $1;
+			}
+	;
+
+if_statement:
+		  IF ROUND_BRACKET_OPEN expression ROUND_BRACKET_CLOSE COLON block
+			{
+				if (!is_bool_type($3))
+					throw_symantique_error(format_string("if condition must be of type boolean but got %s", $3));
+			}
+		| IF ROUND_BRACKET_OPEN expression ROUND_BRACKET_CLOSE COLON block ELSE COLON block
+			{
+				if (!is_bool_type($3))
+					throw_symantique_error(format_string("if condition must be of type boolean but got %s", $3));
+			}
+	;
+
+while_statement:
+		  WHILE ROUND_BRACKET_OPEN expression ROUND_BRACKET_CLOSE COLON block
+			{
+				if (!is_bool_type($3))
+					throw_symantique_error(format_string("while condition must be of type boolean but got %s", $3));
 			}
 	;
 
