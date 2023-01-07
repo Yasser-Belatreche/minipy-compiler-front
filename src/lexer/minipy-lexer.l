@@ -62,7 +62,7 @@ BOOL "bool"
 
 IDENTIFIER [A-Z][A-Za-z0-9]{0,7}
 
-COMMENT ^"#".*
+COMMENT "#".*
 
 
 %x INDENT_STATE
@@ -74,7 +74,7 @@ COMMENT ^"#".*
 <INDENT_STATE>{LINE_BREAK} { line_number++; column_number = 1; current_indentation_level = 0; }
 <INDENT_STATE><<EOF>> {
                         if (current_indentation_level < prev_indentation_level) {
-                            //printf("send dedent from eof \n\n");
+                           //printf("send dedent from eof \n\n");
 
                             prev_indentation_level--;
                             return DEDENT;
@@ -100,6 +100,14 @@ COMMENT ^"#".*
 
                     BEGIN INITIAL;
                 }
+ 
+<<EOF>> {
+            if (prev_indentation_level == 0)
+                return 0;
+
+            prev_indentation_level--;
+            return DEDENT;
+        }
 
 {COMMA} {column_number += yyleng;  yylval.lexem_string = strdup(yytext); return COMMA;}
 {COLON} {column_number += yyleng; yylval.lexem_string = strdup(yytext); return COLON;}

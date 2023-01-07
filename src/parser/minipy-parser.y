@@ -1,12 +1,10 @@
 %{
 	#include <stdio.h>
-	#include <unistd.h>
 	#include <stdlib.h>
 	#include <string.h>
 	#include <stdarg.h>
-	#include <ctype.h>
 
-	#include "../src/symbol-table.h"
+	#include "../src/symbol-table/symbol-table.h"
 
 	int yylex();
 	int yyerror(char*);
@@ -60,26 +58,29 @@
 %left MUL DIVIDE
 
 
-%type <lexem_string> type
-
-%type <lexem_string> variable_dec
-%type <lexem_string> variables_dec_list
-%type <lexem_string> more_variables_dec variable_to_assign_to
-
-%type <lexem_string> factor
-%type <lexem_string> variable
-%type <lexem_string> expression 
+%type <lexem_string> variable_dec variables_dec_list more_variables_dec variable_to_assign_to
+%type <lexem_string> for_iterator array_reference
+%type <lexem_string> type factor variable expression
 
 
 %%
-program: statement_list { }
+program: 
+		  statement_list { }
 	;
 
-statement_list: statement_list statement
+statement_list: 
+		  statement_list statement
 		| /* epsilon */ { }
 	;
 
-block: INDENT statement_list DEDENT { } 
+block: 
+		  block_start statement_list block_end { } 
+	;
+
+block_start: INDENT { create_new_scope(); }
+	;
+
+block_end: DEDENT { destroy_most_inner_scope(); }
 	;
 
 statement:
@@ -119,7 +120,7 @@ variables_dec_list:
 variable_dec: 
 		  IDENTIFIER
 		  	{
-				if(is_declared($1))
+				if(is_declared_in_current_scope($1))
 					throw_symantique_error(format_string("variable '%s' already declared", $1));
 				
 				insert($1, NULL);
@@ -128,7 +129,7 @@ variable_dec:
 			}
 		| IDENTIFIER SQUARE_BRACKET_OPEN INTEGER SQUARE_BRACKET_CLOSE 
 			{
-				if(is_declared($1))
+				if(is_declared_in_current_scope($1))
 					throw_symantique_error(format_string("variable '%s' already declared", $1));
 				
 				insert_array($1, NULL, $3);
@@ -160,7 +161,7 @@ assign:
 			}
 	;
 
-variable_to_assign_to: 
+variable_to_assign_to:
 		  IDENTIFIER
 		  	{
 				if(!is_declared($1))
@@ -188,45 +189,98 @@ variable_to_assign_to:
 	;
 
 if_statement:
-		  IF ROUND_BRACKET_OPEN expression ROUND_BRACKET_CLOSE COLON block
+		  IF ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON block
 			{
-				if (!is_bool_type($3))
-					throw_symantique_error(format_string("if condition must be of type boolean but got %s", $3));
+				
 			}
-		| IF ROUND_BRACKET_OPEN expression ROUND_BRACKET_CLOSE COLON block ELSE COLON block
+		| IF ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON block ELSE COLON block
 			{
-				if (!is_bool_type($3))
-					throw_symantique_error(format_string("if condition must be of type boolean but got %s", $3));
+				
 			}
 	;
 
+
+
 while_statement:
-		  WHILE ROUND_BRACKET_OPEN expression ROUND_BRACKET_CLOSE COLON block
+		  WHILE ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON block
 			{
-				if (!is_bool_type($3))
-					throw_symantique_error(format_string("while condition must be of type boolean but got %s", $3));
+			
+			}
+	;
+
+condition:
+		  expression
+		  	{
+				if (!is_bool_type($1))
+					throw_symantique_error(format_string("condition must be of type boolean but got %s", $1));
 			}
 	;
 
 for_statement:
-		  FOR IDENTIFIER IN IDENTIFIER COLON block
-			{
-				Identifier *target_array = get($4);
+		  for_in_array COLON for_block
+		| for_in_range COLON for_block
+	;
 
-				if (target_array == NULL)
-					throw_symantique_error(format_string("variable '%s' not declared", $4));
 
-				if (!target_array->is_array)
-					throw_symantique_error(format_string("variable '%s' is not an array", $4));
-			}
-		| FOR IDENTIFIER IN RANGE ROUND_BRACKET_OPEN INTEGER COMMA INTEGER ROUND_BRACKET_CLOSE COLON block
+for_in_array:
+		  for_start for_iterator IN array_reference
 			{
-				if ($6 >= $8)
-					throw_symantique_error(format_string("range start '%d' must be less than range end '%d'", $6, $8));
+				Identifier *array = get($4);
+				Identifier *iterator = get($2);
+
+				iterator->type = array->type;
 			}
 	;
 
-expression: 
+for_in_range: 
+		  for_start for_iterator IN range
+			{
+				Identifier *iterator = get($2);
+
+				iterator->type = "int";
+			}
+	;
+
+for_start: FOR { create_new_scope(); }
+	;
+
+for_block: INDENT statement_list DEDENT { destroy_most_inner_scope(); }
+	;
+
+for_iterator: 
+		  IDENTIFIER
+			{
+				insert($1, NULL);
+				$$ = $1;
+			}
+	;
+
+
+array_reference:
+		  IDENTIFIER
+			{		
+				Identifier *id = get($1);
+
+				if (id == NULL)
+					throw_symantique_error(format_string("variable '%s' not declared", $1));
+
+				if (!id->is_array)
+					throw_symantique_error(format_string("variable '%s' is not an array", $1));
+				
+				$$ = $1;
+			}
+	;
+
+
+range: 
+		  RANGE ROUND_BRACKET_OPEN INTEGER COMMA INTEGER ROUND_BRACKET_CLOSE
+			{
+				if ($3 >= $5)
+					throw_symantique_error(format_string("range start '%d' must be less than range end '%d'", $3, $5));
+			}
+	;
+
+expression:
 		  expression MUL expression
 			{
 				if (!is_numeric_type($1) || !is_numeric_type($3))
@@ -389,9 +443,14 @@ factor:
 variable: 
 		  IDENTIFIER
 			{
-				if(!is_declared($1)) 
+				Identifier *id = get($1);
+				
+				if (id == NULL) 
 					throw_symantique_error(format_string("variable '%s' not declared", $1));
 				
+				if (id->is_array)
+					throw_symantique_error(format_string("variable '%s' is an array, you can only reference his elements", $1));
+
 				$$ = $1;
 			} 
 
@@ -400,7 +459,7 @@ variable:
 				Identifier *id = get($1);
 				int index = $3;
 
-				if(id == NULL) 
+				if (id == NULL) 
 					throw_symantique_error(format_string("array %s not declared", $1));
 				
 				if (!id->is_array)

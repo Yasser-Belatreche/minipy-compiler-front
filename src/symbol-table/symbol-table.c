@@ -15,6 +15,17 @@ typedef struct Scope
 
 Scope *current_scope = NULL;
 
+int is_declared_in_current_scope(char *name)
+{
+    Scope *scope = current_scope;
+
+    for (int i = 0; i < scope->next_identifier_index; i++)
+        if (strcmp(scope->identifiers[i].name, name) == 0)
+            return 1;
+
+    return 0;
+}
+
 int is_declared(char *name)
 {
     Identifier *idf = get(name);

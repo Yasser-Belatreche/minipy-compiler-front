@@ -12,6 +12,8 @@ typedef struct Identifier
 
 int is_declared(char *);
 
+int is_declared_in_current_scope(char *);
+
 Identifier *get(char *);
 
 void create_new_scope();
