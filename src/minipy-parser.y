@@ -87,6 +87,7 @@ statement:
 		| assign
 		| if_statement
 		| while_statement
+		| for_statement	
 		| block
 	;
 
@@ -119,7 +120,7 @@ variable_dec:
 		  IDENTIFIER
 		  	{
 				if(is_declared($1))
-					throw_symantique_error(format_string("variable %s already declared", $1));
+					throw_symantique_error(format_string("variable '%s' already declared", $1));
 				
 				insert($1, NULL);
 
@@ -128,7 +129,7 @@ variable_dec:
 		| IDENTIFIER SQUARE_BRACKET_OPEN INTEGER SQUARE_BRACKET_CLOSE 
 			{
 				if(is_declared($1))
-					throw_symantique_error(format_string("variable %s already declared", $1));
+					throw_symantique_error(format_string("variable '%s' already declared", $1));
 				
 				insert_array($1, NULL, $3);
 
@@ -154,7 +155,7 @@ assign:
 
 				else if (strcmp(target_variable->type, expression_type) != 0)
 					throw_symantique_error(
-						format_string("cannot assign type %s to variable %s of type %s", expression_type, target_variable->name, target_variable->type)
+						format_string("cannot assign type %s to variable '%s' of type %s", expression_type, target_variable->name, target_variable->type)
 					);
 			}
 	;
@@ -169,18 +170,18 @@ variable_to_assign_to:
 			}
 
 		| IDENTIFIER SQUARE_BRACKET_OPEN INTEGER SQUARE_BRACKET_CLOSE 
-			{ 
+			{
 				Identifier *id = get($1);
 				int index = $3;
 
 				if(id == NULL) 
-					throw_symantique_error(format_string("variable %s not declared", $1));
+					throw_symantique_error(format_string("variable '%s' not declared", $1));
 				
 				if (!id->is_array)
-					throw_symantique_error(format_string("variable %s is not an array", id->name));
+					throw_symantique_error(format_string("variable '%s' is not an array", id->name));
 				
 				if (index >= id->array_size)
-					throw_symantique_error(format_string("index %d out of array %s bounds", index, id->name));
+					throw_symantique_error(format_string("index %d out of array '%s' bounds", index, id->name));
 				
 				$$ = $1;
 			}
@@ -204,6 +205,24 @@ while_statement:
 			{
 				if (!is_bool_type($3))
 					throw_symantique_error(format_string("while condition must be of type boolean but got %s", $3));
+			}
+	;
+
+for_statement:
+		  FOR IDENTIFIER IN IDENTIFIER COLON block
+			{
+				Identifier *target_array = get($4);
+
+				if (target_array == NULL)
+					throw_symantique_error(format_string("variable '%s' not declared", $4));
+
+				if (!target_array->is_array)
+					throw_symantique_error(format_string("variable '%s' is not an array", $4));
+			}
+		| FOR IDENTIFIER IN RANGE ROUND_BRACKET_OPEN INTEGER COMMA INTEGER ROUND_BRACKET_CLOSE COLON block
+			{
+				if ($6 >= $8)
+					throw_symantique_error(format_string("range start '%d' must be less than range end '%d'", $6, $8));
 			}
 	;
 
@@ -371,7 +390,7 @@ variable:
 		  IDENTIFIER
 			{
 				if(!is_declared($1)) 
-					throw_symantique_error(format_string("variable %s not declared", $1));
+					throw_symantique_error(format_string("variable '%s' not declared", $1));
 				
 				$$ = $1;
 			} 
@@ -385,7 +404,7 @@ variable:
 					throw_symantique_error(format_string("array %s not declared", $1));
 				
 				if (!id->is_array)
-					throw_symantique_error(format_string("variable %s is not an array", $1));
+					throw_symantique_error(format_string("variable '%s' is not an array", $1));
 				
 				if (index >= id->array_size)
 					throw_symantique_error(format_string("index %d out of array %s bounds", index, id->name));

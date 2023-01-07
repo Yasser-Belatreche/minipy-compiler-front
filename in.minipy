@@ -1,14 +1,16 @@
 int Asd
 int Sds
 
-if (Asd == 3):
+
+if (Sds == 3):
+
 
     if (Sds == 21):
         Sds = 329
     else:
         Sds = 0
     
-    while (true):
+    while (Sds):
         Sds= 1
 else:
-        Sds = 0
+    Sds = 0
