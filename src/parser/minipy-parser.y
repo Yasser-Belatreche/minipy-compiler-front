@@ -5,6 +5,7 @@
 	#include <stdarg.h>
 
 	#include "../src/symbol-table/symbol-table.h"
+	#include "../src/intermediate-code/quadruplet/quadruplet.c"
 
 	int yylex();
 	int yyerror(char*);
@@ -28,6 +29,11 @@
 	char* lexem_string;
 	int lexem_int;
 	float lexem_float;
+
+	struct expr {
+		char* type;
+		char* result;
+	} expr;
 }
 
 
@@ -58,9 +64,10 @@
 %left MUL DIVIDE
 
 
-%type <lexem_string> variable_dec variables_dec_list more_variables_dec variable_to_assign_to
-%type <lexem_string> for_iterator array_reference
-%type <lexem_string> type factor variable expression
+%type <lexem_string> variable_dec variables_dec_list more_variables_dec 
+%type <lexem_string> for_iterator array_reference 
+%type <lexem_string> type
+%type <expr> expression variable factor simple_variable_to_assign_to array_variable_to_assign_to
 
 
 %%
@@ -77,10 +84,12 @@ block:
 		  block_start statement_list block_end { } 
 	;
 
-block_start: INDENT { create_new_scope(); }
+block_start: 
+		  INDENT { create_new_scope(); }
 	;
 
-block_end: DEDENT { destroy_most_inner_scope(); }
+block_end: 
+		  DEDENT { destroy_most_inner_scope(); }
 	;
 
 statement:
@@ -146,10 +155,15 @@ more_variables_dec:
 	;
 
 assign: 
-		  variable_to_assign_to ASSIGNMENT expression 
-			{
-				Identifier *target_variable = get($1);
-				char *expression_type = $3;
+		  assing_to_simple_variable
+		| assign_to_array_variable
+	;
+
+assing_to_simple_variable: 
+		  simple_variable_to_assign_to ASSIGNMENT expression
+		  	{
+				Identifier *target_variable = get($1.result);
+				char *expression_type = $3.type;
 
 				if (target_variable->type == NULL)
 					target_variable->type = expression_type;
@@ -158,35 +172,62 @@ assign:
 					throw_symantique_error(
 						format_string("cannot assign type %s to variable '%s' of type %s", expression_type, target_variable->name, target_variable->type)
 					);
+				
+				insert_quadruplet("=", $3.result, "", target_variable->name);
 			}
 	;
 
-variable_to_assign_to:
+simple_variable_to_assign_to:
 		  IDENTIFIER
 		  	{
 				if(!is_declared($1))
 					insert($1, NULL);
 				
-				$$ = $1;
-			}
-
-		| IDENTIFIER SQUARE_BRACKET_OPEN INTEGER SQUARE_BRACKET_CLOSE 
-			{
 				Identifier *id = get($1);
-				int index = $3;
-
-				if(id == NULL) 
-					throw_symantique_error(format_string("variable '%s' not declared", $1));
 				
-				if (!id->is_array)
-					throw_symantique_error(format_string("variable '%s' is not an array", id->name));
+				$$.type = id->type;
+				$$.result = id->name;
+			}
+	;
+
+assign_to_array_variable: 
+		  array_variable_to_assign_to SQUARE_BRACKET_OPEN INTEGER SQUARE_BRACKET_CLOSE ASSIGNMENT expression 
+			{
+				Identifier *id = get($1.result);
+				int index = $3;
 				
 				if (index >= id->array_size)
 					throw_symantique_error(format_string("index %d out of array '%s' bounds", index, id->name));
 				
-				$$ = $1;
+				char *expression_type = $6.type;
+				if (strcmp(id->type, expression_type) != 0)
+					throw_symantique_error(
+						format_string("cannot assign type %s to variable '%s' of type %s", expression_type, id->name, id->type)
+					);
+				
+				char *temp = next_temp();
+
+				insert_quadruplet("SUBS", id->name, format_string("%d", index), temp);
+				insert_quadruplet("=", $6.result, "", temp);
 			}
 	;
+
+array_variable_to_assign_to:
+		  IDENTIFIER
+		  	{
+				Identifier *id = get($1);
+
+				if(id == NULL) 
+					throw_symantique_error(format_string("array '%s' not declared", $1));
+				
+				if (!id->is_array)
+					throw_symantique_error(format_string("variable '%s' is not an array", id->name));
+				
+				$$.type = id->type;
+				$$.result = id->name;
+			}
+	;
+
 
 if_statement:
 		  IF ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON block
@@ -211,8 +252,8 @@ while_statement:
 condition:
 		  expression
 		  	{
-				if (!is_bool_type($1))
-					throw_symantique_error(format_string("condition must be of type boolean but got %s", $1));
+				if (!is_bool_type($1.type))
+					throw_symantique_error(format_string("condition must be of type boolean but got %s", $1.type));
 			}
 	;
 
@@ -241,10 +282,12 @@ for_in_range:
 			}
 	;
 
-for_start: FOR { create_new_scope(); }
+for_start: 
+		  FOR { create_new_scope(); }
 	;
 
-for_block: INDENT statement_list DEDENT { destroy_most_inner_scope(); }
+for_block: 
+		  INDENT statement_list DEDENT { destroy_most_inner_scope(); }
 	;
 
 for_iterator: 
@@ -283,158 +326,226 @@ range:
 expression:
 		  expression MUL expression
 			{
-				if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 					throw_symantique_error(
-						format_string("Operator '*' expect operands to have numeric type but got : %s * %s", $1, $3)
+						format_string("Operator '*' expect operands to have numeric type but got : %s * %s", $1.type, $3.type)
 					);
-				
-				$$ = get_bigger_numeric_type($1, $3);
+		
+				char *temp = next_temp();
+
+				insert_quadruplet("*", $1.result, $3.result, temp);
+
+				$$.result = temp;
+				$$.type = get_bigger_numeric_type($1.type, $3.type);
 			}
 
 		| expression DIVIDE expression
 			{
-				if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 					throw_symantique_error(
-						format_string("Operator '/' expect operands to have numeric type but got : %s / %s", $1, $3)
+						format_string("Operator '/' expect operands to have numeric type but got : %s / %s", $1.type, $3.type)
 					);
 				
-				$$ = get_bigger_numeric_type($1, $3);
+				char *temp = next_temp();
+
+				insert_quadruplet("/", $1.result, $3.result, temp);
+
+				$$.result = temp;
+				$$.type = get_bigger_numeric_type($1.type, $3.type);
 			}
 		
 		| expression PLUS expression
 			{
-				if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 					throw_symantique_error(
-						format_string("Operator '+' expect operands to have numeric type but got : %s + %s", $1, $3)
+						format_string("Operator '+' expect operands to have numeric type but got : %s + %s", $1.type, $3.type)
 					);
 				
-				$$ = get_bigger_numeric_type($1, $3);
+				char *temp = next_temp();
+
+				insert_quadruplet("+", $1.result, $3.result, temp);
+
+				$$.result = temp;
+				$$.type = get_bigger_numeric_type($1.type, $3.type);
 			}
 
 		| expression MINUS expression 
 			{
-				if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 					throw_symantique_error(
-						format_string("Operator '-' expect operands to have numeric type but got : %s - %s", $1, $3)
+						format_string("Operator '-' expect operands to have numeric type but got : %s - %s", $1.type, $3.type)
 					);
-				
-				$$ = get_bigger_numeric_type($1, $3);
+
+				char *temp = next_temp();
+
+				insert_quadruplet("-", $1.result, $3.result, temp);
+
+				$$.result = temp;
+				$$.type = get_bigger_numeric_type($1.type, $3.type);
 			}
 
 		| expression AND expression
 			{
-				if (!is_bool_type($1) || !is_bool_type($3))
+				if (!is_bool_type($1.type) || !is_bool_type($3.type))
 					throw_symantique_error(
-						format_string("Operator 'and' expect operands to have boolean type but got : %s and %s", $1, $3)
+						format_string("Operator 'and' expect operands to have boolean type but got : %s and %s", $1.type, $3.type)
 					);
 
-				$$ = "bool";
+				char *temp = next_temp();
+
+				$$.result = temp;
+				$$.type = "bool";
 			}
 		| expression OR expression 
 			{
-				if (!is_bool_type($1) || !is_bool_type($3))
+				if (!is_bool_type($1.type) || !is_bool_type($3.type))
 					throw_symantique_error(
-						format_string("Operator 'or' expect operands to have boolean type but got : %s or %s", $1, $3)
+						format_string("Operator 'or' expect operands to have boolean type but got : %s or %s", $1.type, $3.type)
 					);
 
-				$$ = "bool";
+				char *temp = next_temp();
+
+				$$.result = temp;
+				$$.type = "bool";
 			}
 
 		| NOT expression 
 			{
-				if (!is_bool_type($2))
+				if (!is_bool_type($2.type))
 					throw_symantique_error(
-						format_string("Operator 'not' expect operand to have bool type but got : not %s", $2)
+						format_string("Operator 'not' expect operand to have bool type but got : not %s", $2.type)
 					);
 
-				$$ = "bool";
+				char *temp = next_temp();
+
+				$$.result = temp;
+				$$.type = "bool";
 			}
 
 		| expression GE expression 
 			{
-				if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 					throw_symantique_error(
-						format_string("Operator '>=' expect operands to have numeric type but got : %s >= %s", $1, $3)
+						format_string("Operator '>=' expect operands to have numeric type but got : %s >= %s", $1.type, $3.type)
 					);
 
-				$$ = "bool";
+				char *temp = next_temp();
+
+				$$.result = temp;
+				$$.type = "bool";
 			}
 
 		| expression LE expression 
 			{
-				if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 					throw_symantique_error(
-						format_string("Operator '<=' expect operands to have numeric type but got : %s <= %s", $1, $3)
+						format_string("Operator '<=' expect operands to have numeric type but got : %s <= %s", $1.type, $3.type)
 					);
 
-				$$ = "bool";
+				char *temp = next_temp();
+
+				$$.result = temp;
+				$$.type = "bool";
 			}
 
 		| expression EQ expression
 			{
-				if (strcmp($1, $3) != 0)
-					if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (strcmp($1.type, $3.type) != 0)
+					if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 						throw_symantique_error(
-							format_string("Operator '==' expect operands to have the same type but got : %s == %s", $1, $3)
+							format_string("Operator '==' expect operands to have the same type but got : %s == %s", $1.type, $3.type)
 						);
 
-				$$ = "bool";
+				char *temp = next_temp();
+
+				$$.result = temp;
+				$$.type = "bool";
 			}
 
 		| expression NE expression
 			{
-				if (strcmp($1, $3) != 0)
-					if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (strcmp($1.type, $3.type) != 0)
+					if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 						throw_symantique_error(
-							format_string("Operator '!=' expect operands to have the same type but got : %s != %s", $1, $3)
+							format_string("Operator '!=' expect operands to have the same type but got : %s != %s", $1.type, $3.type)
 						);
 
-				$$ = "bool";
+				char *temp = next_temp();
+
+				$$.result = temp;
+				$$.type = "bool";
 			}
 
 		| expression GT expression
 			{
-				if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 					throw_symantique_error(
-						format_string("Operator '>' expect operands to have numeric type but got : %s > %s", $1, $3)
+						format_string("Operator '>' expect operands to have numeric type but got : %s > %s", $1.type, $3.type)
 					);
 
-				$$ = "bool";
+				char *temp = next_temp();
+
+				$$.result = temp;
+				$$.type = "bool";
 			}
 
 		| expression LT expression 
 			{
-				if (!is_numeric_type($1) || !is_numeric_type($3))
+				if (!is_numeric_type($1.type) || !is_numeric_type($3.type))
 					throw_symantique_error(
-						format_string("Operator '<' expect operands to have numeric type but got : %s < %s", $1, $3)
+						format_string("Operator '<' expect operands to have numeric type but got : %s < %s", $1.type, $3.type)
 					);
 
-				$$ = "bool";
+
+				char *temp = next_temp();
+				
+				$$.result = temp;
+				$$.type = "bool";
 			}
 
 		| factor 
-			{ $$ = type_of($1); }
+			{ $$ = $1; }
 	;
 
 factor:
 		  variable
-		  	{ $$ = $1; }
+ 			{ $$ = $1; }
 
 		| INTEGER
-			{ $$ = format_string("%d", $1); }
+			{
+				$$.type = "int";
+				$$.result = format_string("%d", $1);
+			}
+
 		| ROUND_BRACKET_OPEN MINUS INTEGER ROUND_BRACKET_CLOSE 
-			{ $$ = format_string("%s%d", $2, $3); }
-		
+			{
+				$$.type = "int";
+				$$.result = format_string("%s%d", $2, $3);
+			}
+
 		| FLOATING_POINT 
-			{ $$ = format_string("%f", $1); }
+			{
+				$$.type = "float";
+				$$.result = format_string("%f", $1);
+			}
+
 		| ROUND_BRACKET_OPEN MINUS FLOATING_POINT ROUND_BRACKET_CLOSE 
-			{ $$ = format_string("%s%f", $2, $3); }
+			{
+				$$.type = "float";
+				$$.result = format_string("%s%f", $2, $3);
+			}
 
 		| BOOLEAN 
-			{ $$ = $1; }
+			{
+				$$.type = "bool";
+				$$.result = $1;
+			}
 
 		| SINGLE_QUOTION_MARK CHARACTER SINGLE_QUOTION_MARK 
-			{ $$ = format_string("'%c'", $2); }
+			{ 
+				$$.type = "char";
+				$$.result = format_string("'%c'", $2);
+			}
 
 		| ROUND_BRACKET_OPEN expression ROUND_BRACKET_CLOSE 
 			{ $$ = $2; }
@@ -451,24 +562,30 @@ variable:
 				if (id->is_array)
 					throw_symantique_error(format_string("variable '%s' is an array, you can only reference his elements", $1));
 
-				$$ = $1;
-			} 
+				$$.type = id->type;
+				$$.result = id->name;
+			}
 
 		| IDENTIFIER SQUARE_BRACKET_OPEN INTEGER SQUARE_BRACKET_CLOSE
 			{
 				Identifier *id = get($1);
 				int index = $3;
 
-				if (id == NULL) 
+				if (id == NULL)
 					throw_symantique_error(format_string("array %s not declared", $1));
-				
+
 				if (!id->is_array)
 					throw_symantique_error(format_string("variable '%s' is not an array", $1));
-				
+
 				if (index >= id->array_size)
 					throw_symantique_error(format_string("index %d out of array %s bounds", index, id->name));
-				
-				$$ = $1;
+
+				char *temp = next_temp();
+
+				insert_quadruplet("SUBS", id->name, format_string("%d", index), temp);
+
+				$$.type = id->type;
+				$$.result = temp;
 			}
 	;
 %%
@@ -568,7 +685,9 @@ int main (int argc, char** argv)
 
 	yyparse();
 
-	display();
+	display_symbol_table();
+	display_quadruplets();
+
 	fclose (yyin);
 
 	return 0;

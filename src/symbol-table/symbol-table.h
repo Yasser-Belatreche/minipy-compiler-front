@@ -24,6 +24,6 @@ void insert(char *, char *);
 
 void insert_array(char *, char *, int);
 
-void display();
+void display_symbol_table();
 
 #endif // SYMBOL_TABLE_H

@@ -99,7 +99,7 @@ void insert_array(char *name, char *type, int array_size)
     current_scope->next_identifier_index++;
 }
 
-void display()
+void display_symbol_table()
 {
     Scope *scope = current_scope;
 
