@@ -27,6 +27,7 @@
 
 	Stack *if_false_branching_stack, *if_end_branching_stack;
 	Stack *while_start_quads_stack, *while_end_branching_stack;
+	Stack *for_start_quads_stack, *for_end_branching_stack, *for_iterator_stack;
 %}
 
 %union {
@@ -38,6 +39,11 @@
 		char* type;
 		char* result;
 	} expr;
+
+	struct range {
+		char* start;
+		char* end;
+	} range;
 }
 
 
@@ -70,9 +76,9 @@
 
 %type <lexem_string> variable_dec variables_dec_list more_variables_dec 
 %type <lexem_string> for_iterator array_reference 
-%type <lexem_string> type
+%type <lexem_string> type for_in_range for_in_array
 %type <expr> expression condition variable factor simple_variable_to_assign_to array_variable_to_assign_to
-
+%type <range> range
 
 %%
 program: 
@@ -309,7 +315,25 @@ condition:
 
 for_statement:
 		  for_in_array COLON for_block
+		  	{
+				char *iterator = $1;
+				insert_quadruplet("+", iterator, "1", iterator);
+	
+				int index = insert_quadruplet("BR", format_string("%d", pop(for_start_quads_stack)), "", "");
+
+				Quadruplet *q = get_quadruplet(pop(for_end_branching_stack));
+				q->arg1 = format_string("%d", index + 1);
+			}
 		| for_in_range COLON for_block
+			{
+				char *iterator = $1;
+				insert_quadruplet("+", iterator, "1", iterator);
+	
+				int index = insert_quadruplet("BR", format_string("%d", pop(for_start_quads_stack)), "", "");
+
+				Quadruplet *q = get_quadruplet(pop(for_end_branching_stack));
+				q->arg1 = format_string("%d", index + 1);
+			}
 	;
 
 
@@ -320,6 +344,18 @@ for_in_array:
 				Identifier *iterator = get($2);
 
 				iterator->type = array->type;
+
+				char *temp = next_temp();
+				insert_quadruplet("=", "0", "", temp);
+
+				int index = insert_quadruplet("BGE", "", temp, format_string("%d", array->array_size));
+
+				insert_quadruplet("SUBS", array->name, temp, iterator->name);
+
+				push(for_end_branching_stack, index);
+				push(for_start_quads_stack, index);
+
+				$$ = temp;
 			}
 	;
 
@@ -327,17 +363,27 @@ for_in_range:
 		  for_start for_iterator IN range
 			{
 				Identifier *iterator = get($2);
-
 				iterator->type = "int";
+
+				insert_quadruplet("=", $4.start, "", iterator->name);
+
+				int index = insert_quadruplet("BG", "", iterator->name, $4.end);
+
+				push(for_end_branching_stack, index);
+				push(for_start_quads_stack, index);
+
+				$$ = iterator->name;
 			}
 	;
 
-for_start: 
-		  FOR { create_new_scope(); }
+for_start:
+		  FOR
+		  	{ create_new_scope(); }
 	;
 
 for_block:
-		  INDENT statement_list DEDENT { destroy_most_inner_scope(); }
+		  INDENT statement_list DEDENT 
+		  	{ destroy_most_inner_scope(); }
 	;
 
 for_iterator: 
@@ -370,6 +416,9 @@ range:
 			{
 				if ($3 >= $5)
 					throw_symantique_error(format_string("range start '%d' must be less than range end '%d'", $3, $5));
+
+				$$.start = format_string("%d", $3);
+				$$.end = format_string("%d", $5);
 			}
 	;
 
@@ -805,6 +854,10 @@ int main (int argc, char** argv)
 
 	while_start_quads_stack = create_stack();
 	while_end_branching_stack = create_stack();
+
+	for_start_quads_stack = create_stack();
+	for_end_branching_stack = create_stack();
+	for_iterator_stack = create_stack();
 
 	create_new_scope();
 

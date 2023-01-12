@@ -74,10 +74,8 @@ COMMENT "#".*
 
 <INDENT_STATE>{INDENTATION} { current_indentation_level++; column_number += yyleng; }
 <INDENT_STATE>{LINE_BREAK} { line_number++; column_number = 1; current_indentation_level = 0; }
-<INDENT_STATE><<EOF>> {
+<INDENT_STATE><<EOF>>  {
                         if (current_indentation_level < prev_indentation_level) {
-                           //printf("send dedent from eof \n\n");
-
                             prev_indentation_level--;
                             return DEDENT;
                         }
@@ -85,17 +83,13 @@ COMMENT "#".*
                         BEGIN INITIAL;
                     }
 <INDENT_STATE>. {
-                    //printf("Line : %d, Indentation end, current indentation level: %d, previous indentation level: %d \n", line_number, current_indentation_level, prev_indentation_level);
                     unput(*yytext);
 
                     if (current_indentation_level > prev_indentation_level) {
-                        //printf("send indent \n\n");
                         prev_indentation_level++;
                         return INDENT;
                     }
                     if (current_indentation_level < prev_indentation_level) {
-                        //printf("send dedent \n\n");
-
                         prev_indentation_level--;
                         return DEDENT;
                     }
