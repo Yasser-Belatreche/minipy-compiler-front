@@ -26,6 +26,7 @@
 	extern int line_number, column_number;
 
 	Stack *if_false_branching_stack, *if_end_branching_stack;
+	Stack *while_start_quads_stack, *while_end_branching_stack;
 %}
 
 %union {
@@ -279,9 +280,22 @@ else_start:
 
 
 while_statement:
-		  WHILE ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON block
+		  while_start block
 			{
+				int index = insert_quadruplet("BR", format_string("%d", pop(while_start_quads_stack)), "", "");
 
+				Quadruplet *q = get_quadruplet(pop(while_end_branching_stack));
+				q->arg1 = format_string("%d", index + 1);
+			}
+	;
+
+while_start: 
+		WHILE ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON
+			{
+				int index = insert_quadruplet("BZ", "", $3.result, "");
+
+				push(while_end_branching_stack, index);
+				push(while_start_quads_stack, index);
 			}
 	;
 
@@ -788,6 +802,9 @@ int main (int argc, char** argv)
 
 	if_false_branching_stack = create_stack();
 	if_end_branching_stack = create_stack();
+
+	while_start_quads_stack = create_stack();
+	while_end_branching_stack = create_stack();
 
 	create_new_scope();
 
