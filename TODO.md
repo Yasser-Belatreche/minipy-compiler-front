@@ -7,5 +7,5 @@
 - [x] if statements
 - [x] for statements
 - [x] while statements
-- [ ] Qudruplet Generation
+- [x] Qudruplet Generation
 - [ ] Print all the variables in all scopes of the symbal table
