@@ -15,4 +15,8 @@ char *next_temp();
 
 void display_quadruplets();
 
+int get_current_quadruplet_index();
+
+Quadruplet *get_quadruplet(int index);
+
 #endif // QUADRUPLET_H

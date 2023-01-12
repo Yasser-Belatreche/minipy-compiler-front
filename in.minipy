@@ -1,29 +1,39 @@
 int Asd
 int Sds[10]
 
-X = 2
 
-Asd = 4 + 3 / 39 * 20 + X
+Sds[1] = 3
 
-Sds[3] = 4
+if (false):
+    X = 0
 
-if (Sds[3] == 3):
-    int Sds
-
-    if (Sds == 21):
-        int Sds
-        Sds = 329
-
+    if(true):
+        X = 't'
     else:
-        Sds = 0
-
-    while (Sds == 3):
-        Sds = 1
-
-        while (Sds == 3):
-            Sds= 1
+        X = 'e'
 else:
-    bool Arr[10]
+    X = 3
+    
 
-    for I in range(1, 4):
-        I = 4
+X = 1
+
+#if (Sds[3] == 3):
+#    int Sds
+
+#    if (Sds == 21):
+#        int Sds
+#        Sds = 329
+
+#    else:
+#        Sds = 0
+
+#    while (Sds == 3):
+#        Sds = 1
+
+#        while (Sds == 3):
+#            Sds= 1
+#else:
+#    bool Arr[10]
+
+#    for I in range(1, 4):
+#        I = 4

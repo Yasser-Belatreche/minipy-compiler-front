@@ -5,6 +5,7 @@
 	#include <stdarg.h>
 
 	#include "../src/symbol-table/symbol-table.h"
+	#include "../src/data-structures/stack/stack.c"
 	#include "../src/intermediate-code/quadruplet/quadruplet.c"
 
 	int yylex();
@@ -23,12 +24,14 @@
 
 	extern FILE* yyin;
 	extern int line_number, column_number;
+
+	Stack *if_false_branching_stack, *if_end_branching_stack;
 %}
 
 %union {
-	char* lexem_string;
 	int lexem_int;
 	float lexem_float;
+	char* lexem_string;
 
 	struct expr {
 		char* type;
@@ -67,7 +70,7 @@
 %type <lexem_string> variable_dec variables_dec_list more_variables_dec 
 %type <lexem_string> for_iterator array_reference 
 %type <lexem_string> type
-%type <expr> expression variable factor simple_variable_to_assign_to array_variable_to_assign_to
+%type <expr> expression condition variable factor simple_variable_to_assign_to array_variable_to_assign_to
 
 
 %%
@@ -143,6 +146,8 @@ variable_dec:
 				
 				insert_array($1, NULL, $3);
 
+				insert_quadruplet("ADEC", $1, format_string("%d", $3), "");
+
 				$$ = $1;
 			}
 	;
@@ -172,7 +177,7 @@ assing_to_simple_variable:
 					throw_symantique_error(
 						format_string("cannot assign type %s to variable '%s' of type %s", expression_type, target_variable->name, target_variable->type)
 					);
-				
+
 				insert_quadruplet("=", $3.result, "", target_variable->name);
 			}
 	;
@@ -180,7 +185,7 @@ assing_to_simple_variable:
 simple_variable_to_assign_to:
 		  IDENTIFIER
 		  	{
-				if(!is_declared($1))
+				if(!is_declared_in_current_scope($1))
 					insert($1, NULL);
 				
 				Identifier *id = get($1);
@@ -195,16 +200,16 @@ assign_to_array_variable:
 			{
 				Identifier *id = get($1.result);
 				int index = $3;
-				
+
 				if (index >= id->array_size)
 					throw_symantique_error(format_string("index %d out of array '%s' bounds", index, id->name));
-				
+
 				char *expression_type = $6.type;
 				if (strcmp(id->type, expression_type) != 0)
 					throw_symantique_error(
 						format_string("cannot assign type %s to variable '%s' of type %s", expression_type, id->name, id->type)
 					);
-				
+
 				char *temp = next_temp();
 
 				insert_quadruplet("SUBS", id->name, format_string("%d", index), temp);
@@ -219,10 +224,10 @@ array_variable_to_assign_to:
 
 				if(id == NULL) 
 					throw_symantique_error(format_string("array '%s' not declared", $1));
-				
+
 				if (!id->is_array)
 					throw_symantique_error(format_string("variable '%s' is not an array", id->name));
-				
+
 				$$.type = id->type;
 				$$.result = id->name;
 			}
@@ -230,28 +235,59 @@ array_variable_to_assign_to:
 
 
 if_statement:
-		  IF ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON block
+		  if_without_else
+		| if_with_else
+	;
+
+if_without_else:
+		  if_start block
 			{
-				
-			}
-		| IF ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON block ELSE COLON block
-			{
-				
+				Quadruplet *jump = get_quadruplet(pop(if_false_branching_stack));
+
+				jump->arg1 = format_string("%d", get_current_quadruplet_index());
 			}
 	;
 
+if_with_else:
+		  if_start block else_start block
+			{
+				Quadruplet *q = get_quadruplet(pop(if_end_branching_stack));
+
+				q->arg1 = format_string("%d", get_current_quadruplet_index());
+			}
+	;
+
+if_start:
+		  IF ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON
+			{
+				int index = insert_quadruplet("BZ", "", $3.result, "");
+
+				push(if_false_branching_stack, index);
+			}
+	;
+
+else_start:
+		  ELSE COLON
+			{
+				int index = insert_quadruplet("BR", "", "", "");
+				push(if_end_branching_stack, index);
+
+				Quadruplet *q = get_quadruplet(pop(if_false_branching_stack));
+				q->arg1 = format_string("%d", get_current_quadruplet_index());
+			}
+	;
 
 
 while_statement:
 		  WHILE ROUND_BRACKET_OPEN condition ROUND_BRACKET_CLOSE COLON block
 			{
-			
+
 			}
 	;
 
 condition:
 		  expression
-		  	{
+			{
 				if (!is_bool_type($1.type))
 					throw_symantique_error(format_string("condition must be of type boolean but got %s", $1.type));
 			}
@@ -286,7 +322,7 @@ for_start:
 		  FOR { create_new_scope(); }
 	;
 
-for_block: 
+for_block:
 		  INDENT statement_list DEDENT { destroy_most_inner_scope(); }
 	;
 
@@ -393,6 +429,14 @@ expression:
 
 				char *temp = next_temp();
 
+				insert_quadruplet("BZ", format_string("%d", get_current_quadruplet_index() + 4), $1.result, "");
+				insert_quadruplet("BZ", format_string("%d", get_current_quadruplet_index() + 3), $3.result, "");
+
+				insert_quadruplet("=", "1", "", temp);
+				insert_quadruplet("BR", format_string("%d", get_current_quadruplet_index() + 2) , "", "");
+
+				insert_quadruplet("=", "0", "", temp);
+
 				$$.result = temp;
 				$$.type = "bool";
 			}
@@ -404,6 +448,14 @@ expression:
 					);
 
 				char *temp = next_temp();
+
+				insert_quadruplet("BNZ", format_string("%d", get_current_quadruplet_index() + 4), $1.result, "");
+				insert_quadruplet("BNZ", format_string("%d", get_current_quadruplet_index() + 3), $3.result, "");
+
+				insert_quadruplet("=", "0", "", temp);
+				insert_quadruplet("BR", format_string("%d", get_current_quadruplet_index() + 2) , "", "");
+
+				insert_quadruplet("=", "1", "", temp);
 
 				$$.result = temp;
 				$$.type = "bool";
@@ -418,6 +470,13 @@ expression:
 
 				char *temp = next_temp();
 
+				insert_quadruplet("BZ", format_string("%d", get_current_quadruplet_index() + 3), $2.result, "");
+
+				insert_quadruplet("=", "0", "", temp);
+				insert_quadruplet("BR", format_string("%d", get_current_quadruplet_index() + 2) , "", "");
+
+				insert_quadruplet("=", "1", "", temp);
+
 				$$.result = temp;
 				$$.type = "bool";
 			}
@@ -431,6 +490,13 @@ expression:
 
 				char *temp = next_temp();
 
+				insert_quadruplet("BGE", format_string("%d", get_current_quadruplet_index() + 3), $1.result, $3.result);
+
+				insert_quadruplet("=", "0", "", temp);
+				insert_quadruplet("BR", format_string("%d", get_current_quadruplet_index() + 2) , "", "");
+
+				insert_quadruplet("=", "1", "", temp);
+
 				$$.result = temp;
 				$$.type = "bool";
 			}
@@ -443,6 +509,13 @@ expression:
 					);
 
 				char *temp = next_temp();
+
+				insert_quadruplet("BLE", format_string("%d", get_current_quadruplet_index() + 3), $1.result, $3.result);
+
+				insert_quadruplet("=", "0", "", temp);
+				insert_quadruplet("BR", format_string("%d", get_current_quadruplet_index() + 2) , "", "");
+
+				insert_quadruplet("=", "1", "", temp);
 
 				$$.result = temp;
 				$$.type = "bool";
@@ -458,6 +531,13 @@ expression:
 
 				char *temp = next_temp();
 
+				insert_quadruplet("BE", format_string("%d", get_current_quadruplet_index() + 3), $1.result, $3.result);
+
+				insert_quadruplet("=", "0", "", temp);
+				insert_quadruplet("BR", format_string("%d", get_current_quadruplet_index() + 2) , "", "");
+
+				insert_quadruplet("=", "1", "", temp);
+
 				$$.result = temp;
 				$$.type = "bool";
 			}
@@ -472,6 +552,13 @@ expression:
 
 				char *temp = next_temp();
 
+				insert_quadruplet("BNE", format_string("%d", get_current_quadruplet_index() + 3), $1.result, $3.result);
+
+				insert_quadruplet("=", "0", "", temp);
+				insert_quadruplet("BR", format_string("%d", get_current_quadruplet_index() + 2) , "", "");
+
+				insert_quadruplet("=", "1", "", temp);
+
 				$$.result = temp;
 				$$.type = "bool";
 			}
@@ -484,6 +571,13 @@ expression:
 					);
 
 				char *temp = next_temp();
+
+				insert_quadruplet("BG", format_string("%d", get_current_quadruplet_index() + 3), $1.result, $3.result);
+
+				insert_quadruplet("=", "0", "", temp);
+				insert_quadruplet("BR", format_string("%d", get_current_quadruplet_index() + 2) , "", "");
+
+				insert_quadruplet("=", "1", "", temp);
 
 				$$.result = temp;
 				$$.type = "bool";
@@ -498,7 +592,14 @@ expression:
 
 
 				char *temp = next_temp();
-				
+
+				insert_quadruplet("BL", format_string("%d", get_current_quadruplet_index() + 3), $1.result, $3.result);
+
+				insert_quadruplet("=", "0", "", temp);
+				insert_quadruplet("BR", format_string("%d", get_current_quadruplet_index() + 2) , "", "");
+
+				insert_quadruplet("=", "1", "", temp);
+
 				$$.result = temp;
 				$$.type = "bool";
 			}
@@ -538,7 +639,11 @@ factor:
 		| BOOLEAN 
 			{
 				$$.type = "bool";
-				$$.result = $1;
+
+				if (strcmp($1, "true") == 0)
+					$$.result = "1";
+				else if (strcmp($1, "false") == 0)
+					$$.result = "0";
 			}
 
 		| SINGLE_QUOTION_MARK CHARACTER SINGLE_QUOTION_MARK 
@@ -680,6 +785,9 @@ char *get_bigger_numeric_type(char* type1, char* type2)
 int main (int argc, char** argv) 
 { 	
 	yyin = fopen("in.minipy", "r");
+
+	if_false_branching_stack = create_stack();
+	if_end_branching_stack = create_stack();
 
 	create_new_scope();
 

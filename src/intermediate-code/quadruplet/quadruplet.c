@@ -37,3 +37,13 @@ void display_quadruplets()
     for (int i = 0; i < next_quadruplet_index; i++)
         printf("%d - (%s, %s, %s, %s)\n", i, quadruplets[i].op, quadruplets[i].arg1, quadruplets[i].arg2, quadruplets[i].result);
 }
+
+int get_current_quadruplet_index()
+{
+    return next_quadruplet_index;
+}
+
+Quadruplet *get_quadruplet(int index)
+{
+    return &quadruplets[index];
+}
