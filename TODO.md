@@ -8,4 +8,4 @@
 - [x] for statements
 - [x] while statements
 - [x] Qudruplet Generation
-- [ ] Print all the variables in all scopes of the symbal table
+- [x] Print all the variables in all scopes of the symbal table

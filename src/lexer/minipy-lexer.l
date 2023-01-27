@@ -64,7 +64,7 @@ BOOL "bool"
 
 IDENTIFIER [A-Z][A-Za-z0-9]{0,7}
 
-COMMENT "#".*
+COMMENT "#".*\n
 
 
 %x INDENT_STATE

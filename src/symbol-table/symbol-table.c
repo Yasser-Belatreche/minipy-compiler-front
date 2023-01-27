@@ -4,6 +4,7 @@
 #include "symbol-table.h"
 
 #define MAX_SCOPE_SIZE 100
+#define TOTAL_SCOPES 100
 
 typedef struct Scope
 {
@@ -14,6 +15,9 @@ typedef struct Scope
 } Scope;
 
 Scope *current_scope = NULL;
+
+Scope **scopes = NULL;
+int next_scope_index = 0;
 
 int is_declared_in_current_scope(char *name)
 {
@@ -54,6 +58,9 @@ Identifier *get(char *name)
 
 void create_new_scope()
 {
+    if (scopes == NULL)
+        scopes = malloc(sizeof(Scope) * TOTAL_SCOPES);
+
     Scope *scope = malloc(sizeof(Scope));
 
     scope->identifiers = malloc(sizeof(Identifier) * MAX_SCOPE_SIZE);
@@ -61,6 +68,7 @@ void create_new_scope()
     scope->prev = current_scope;
 
     current_scope = scope;
+    scopes[next_scope_index++] = scope;
 }
 
 void destroy_most_inner_scope()
@@ -68,9 +76,6 @@ void destroy_most_inner_scope()
     Scope *scope = current_scope;
 
     current_scope = scope->prev;
-
-    free(scope->identifiers);
-    free(scope);
 }
 
 void insert(char *name, char *type)
@@ -101,16 +106,16 @@ void insert_array(char *name, char *type, int array_size)
 
 void display_symbol_table()
 {
-    Scope *scope = current_scope;
-
-    while (scope != NULL)
+    for (int i = 0; i < next_scope_index; i++)
     {
+        Scope *scope = scopes[i];
+
+        printf("Scope %d\n", i + 1);
+
         for (int i = 0; i < scope->next_identifier_index; i++)
             if (scope->identifiers[i].is_array)
                 printf("Name: %s, Type: %s[], Array Size: %d\n", scope->identifiers[i].name, scope->identifiers[i].type, scope->identifiers[i].array_size);
             else
                 printf("Name: %s, Type: %s\n", scope->identifiers[i].name, scope->identifiers[i].type);
-
-        scope = scope->prev;
     }
 }

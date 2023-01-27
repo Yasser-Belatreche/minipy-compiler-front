@@ -27,7 +27,7 @@
 
 	Stack *if_false_branching_stack, *if_end_branching_stack;
 	Stack *while_start_quads_stack, *while_end_branching_stack;
-	Stack *for_start_quads_stack, *for_end_branching_stack, *for_iterator_stack;
+	Stack *for_start_quads_stack, *for_end_branching_stack;
 %}
 
 %union {
@@ -857,7 +857,6 @@ int main (int argc, char** argv)
 
 	for_start_quads_stack = create_stack();
 	for_end_branching_stack = create_stack();
-	for_iterator_stack = create_stack();
 
 	create_new_scope();
 
