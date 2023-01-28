@@ -228,7 +228,7 @@ array_variable_to_assign_to:
 		  	{
 				Identifier *id = get($1);
 
-				if(id == NULL) 
+				if(id == NULL)
 					throw_symantique_error(format_string("array '%s' not declared", $1));
 
 				if (!id->is_array)

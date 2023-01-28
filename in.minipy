@@ -2,10 +2,11 @@ int Asd
 int Sds[10]
 char Arr[20]
 
+S = 'o'
+
 # comment
 if (Sds[3] == 3):
     int Sds
-    int Sd
 
     if (Sds == 21):
         int Sds
