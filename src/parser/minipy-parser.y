@@ -16,7 +16,6 @@
 	int is_bool_type(char*);
 	int is_numeric_type(char*);
 
-	char* type_of(char*);
 	char* format_string(char*, ...);
 	char* get_bigger_numeric_type(char*, char*);
 
@@ -784,23 +783,6 @@ char *format_string(char* format, ...)
 	va_end(args);
 
 	return str;
-}
-
-char *type_of(char* str)
-{
-	if (strcmp(str, "true") == 0 || strcmp(str, "false") == 0)
-		return "bool";
-
-	if (str[0] == '\'' && str[2] == '\'')
-		return "char";
-
-	if (str[0] == '-' && is_int(str) || is_int(str))
-		return "int";
-
-	if (str[0] == '-' && is_float(str) || is_float(str))
-		return "float";
-
-	return get(str)->type;
 }
 
 int is_numeric_type(char* str)
